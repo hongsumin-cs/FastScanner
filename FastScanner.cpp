@@ -18,15 +18,19 @@ void singleFileScan(const string& path) {
 	}
 }
 
-void recursiveFileScan(const std::string& path) {
+void recursiveFileScan(const std::string& path, const std::string& keyword) {
 	try {
 		for (const fs::directory_entry entry : fs::directory_iterator(path, fs::directory_options::skip_permission_denied)) {
 			if (entry.is_directory()) {
-				recursiveFileScan(entry.path().string());
+				recursiveFileScan(entry.path().string(), keyword);
 			}
 
 			else if (entry.is_regular_file()) {
-				std::cout << "File: " << entry.path().string() << "\n";
+				std::string filename = entry.path().filename().string();
+
+				if (filename.find(keyword) != std::string::npos) {
+					std::cout << "File: " << entry.path().string() << "\n";
+				}
 			}
 		}
 	}
