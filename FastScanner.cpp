@@ -1,13 +1,18 @@
 ﻿#include <iostream>
 #include <string>
 #include <filesystem>
+#include <fstream>
 
 using namespace std;
 namespace fs = std::filesystem;
 
+void singleFileScan(const string& path);
+void recursiveFileScan(const std::string& path, const std::string& keyword);
+void searchInFile(const std::string& path, const std::string& keyword);
+
 
 void singleFileScan(const string& path) {
-	for (const fs::directory_entry entry : fs::directory_iterator(path)) {
+	for (const fs::directory_entry entry : fs::directory_iterator(path, fs::directory_options::skip_permission_denied)) {
 		if (entry.is_directory()) {
 			std::cout << "Directory: " << entry.path().string() << "\n";
 		}
@@ -31,12 +36,32 @@ void recursiveFileScan(const std::string& path, const std::string& keyword) {
 				if (filename.find(keyword) != std::string::npos) {
 					std::cout << "File: " << entry.path().string() << "\n";
 				}
+
+				searchInFile(entry.path().string(), keyword);
 			}
 		}
 	}
 
 	catch (const fs::filesystem_error& e) {
 		std::cerr << "Error: " << path << "\n";
+	}
+}
+
+void searchInFile(const std::string& path, const std::string& keyword) {
+	std::ifstream file(path);
+
+	if (!file.is_open()) {
+		return;
+	}
+
+	std::string line;
+	int lineNumber = 1;
+
+	while (std::getline(file, line)) {
+		if (line.find(keyword) != std::string::npos) {
+			std::cout << "Found in " << path << " (Line: " << lineNumber << ")\n";
+		}
+		lineNumber++;
 	}
 }
 
