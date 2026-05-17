@@ -2,6 +2,7 @@
 #include <string>
 #include <filesystem>
 #include <fstream>
+#include <set>
 
 using namespace std;
 namespace fs = std::filesystem;
@@ -24,6 +25,8 @@ void singleFileScan(const string& path) {
 }
 
 void recursiveFileScan(const std::string& path, const std::string& keyword) {
+	static const std::set<std::string> validExtensions = { ".txt", ".cpp", ".h", ".md", ".json", ".xml", ".csv" };
+
 	try {
 		for (const fs::directory_entry entry : fs::directory_iterator(path, fs::directory_options::skip_permission_denied)) {
 			if (entry.is_directory()) {
@@ -37,7 +40,11 @@ void recursiveFileScan(const std::string& path, const std::string& keyword) {
 					std::cout << "File: " << entry.path().string() << "\n";
 				}
 
-				searchInFile(entry.path().string(), keyword);
+				std::string extension = entry.path().extension().string();
+
+				if (validExtensions.find(extension) != validExtensions.end()) {
+					searchInFile(entry.path().string(), keyword);
+				}
 			}
 		}
 	}
@@ -87,6 +94,8 @@ int main(int argc, char* argv[])
 
 	cout << "Scanning in: " << targetPath << "\n";
 	cout << "Searching for: " << searchWord << "\n"; 
+
+	recursiveFileScan(targetPath, searchWord);
 
 	return 0;
 }
