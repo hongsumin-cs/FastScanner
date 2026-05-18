@@ -11,7 +11,6 @@
 #include <vector>
 #include <atomic>
 
-using namespace std;
 namespace fs = std::filesystem;
 
 std::queue<std::string> pathQueue; 
@@ -20,7 +19,7 @@ std::condition_variable cv;
 std::atomic<bool> isDirScanDone(false);
 
 void worker(const std::string& keyword);
-void singleFileScan(const string& path);
+void singleFileScan(const std::string& path);
 void recursiveFileScan(const std::string& path, const std::string& keyword);
 void searchInFile(const std::string& path, const std::string& keyword);
 
@@ -49,7 +48,7 @@ void worker(const std::string& keyword) {
 	}
 }
 
-void singleFileScan(const string& path) {
+void singleFileScan(const std::string& path) {
 	for (const fs::directory_entry entry : fs::directory_iterator(path, fs::directory_options::skip_permission_denied)) {
 		if (entry.is_directory()) {
 			std::cout << "Directory: " << entry.path().string() << "\n";
@@ -80,7 +79,13 @@ void recursiveFileScan(const std::string& path, const std::string& keyword) {
 				std::string extension = entry.path().extension().string();
 
 				if (validExtensions.find(extension) != validExtensions.end()) {
-					searchInFile(entry.path().string(), keyword);
+
+					{
+						std::lock_guard<std::mutex> lock(queueMutex);
+						pathQueue.push(entry.path().string());
+					}
+
+					cv.notify_one();
 				}
 			}
 		}
@@ -112,27 +117,49 @@ void searchInFile(const std::string& path, const std::string& keyword) {
 int main(int argc, char* argv[])
 {
 	if (argc < 3) {
-		cout << "Usage: " << argv[0] << " <Target Directory> <Word to Search>";
+		std::cout << "Usage: " << argv[0] << " <Target Directory> <Word to Search>";
 		return 0;
 	}
 
-	string targetPath = argv[1];
-	string searchWord = argv[2];
+	std::string targetPath = argv[1];
+	std::string keyword = argv[2];
 
 	if (!fs::exists(targetPath)) {
-		cout << "Path does not exist: " << targetPath << "\n";
+		std::cout << "Path does not exist: " << targetPath << "\n";
 		return 1;
 	}
 
 	if (!fs::is_directory(targetPath)) {
-		cout << "Path is not a directory: " << targetPath << "\n";
+		std::cout << "Path is not a directory: " << targetPath << "\n";
 		return 1;
 	}
 
-	cout << "Scanning in: " << targetPath << "\n";
-	cout << "Searching for: " << searchWord << "\n"; 
+	std::cout << "Scanning in: " << targetPath << "\n";
+	std::cout << "Searching for: " << keyword << "\n";
 
-	recursiveFileScan(targetPath, searchWord);
+	unsigned int numThreads = std::thread::hardware_concurrency();
+	if (numThreads == 0) 
+		numThreads = 4; // use 4 threads basically
 
+	std::cout << "Using " << numThreads << " worker threads.\n";
+
+	std::vector<std::thread> threadPool;
+	for (unsigned int i = 0; i < numThreads; ++i) {
+		threadPool.emplace_back(worker, keyword);
+	}
+	
+	recursiveFileScan(targetPath, keyword);
+
+	isDirScanDone = true;
+	cv.notify_all();
+
+	// join all threads
+	for (auto& t : threadPool) {
+		if (t.joinable()) {
+			t.join();
+		}
+	}
+
+	std::cout << "Scan complete!\n";
 	return 0;
 }
