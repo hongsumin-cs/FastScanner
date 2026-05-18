@@ -4,13 +4,50 @@
 #include <fstream>
 #include <set>
 
+#include <queue>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <vector>
+#include <atomic>
+
 using namespace std;
 namespace fs = std::filesystem;
 
+std::queue<std::string> pathQueue; 
+std::mutex queueMutex;            
+std::condition_variable cv; 
+std::atomic<bool> isDirScanDone(false);
+
+void worker(const std::string& keyword);
 void singleFileScan(const string& path);
 void recursiveFileScan(const std::string& path, const std::string& keyword);
 void searchInFile(const std::string& path, const std::string& keyword);
 
+void worker(const std::string& keyword) {
+	while (true) {
+		std::string currentPath;
+
+		// critical section start
+		{
+			std::unique_lock<std::mutex> lock(queueMutex);
+
+			while (pathQueue.empty() && !isDirScanDone) {
+				cv.wait(lock);
+			}
+
+			if (isDirScanDone && pathQueue.empty()) {
+				return;
+			}
+
+			currentPath = pathQueue.front();
+			pathQueue.pop();
+		}
+		// critical section end
+
+		searchInFile(currentPath, keyword);
+	}
+}
 
 void singleFileScan(const string& path) {
 	for (const fs::directory_entry entry : fs::directory_iterator(path, fs::directory_options::skip_permission_denied)) {
