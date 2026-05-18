@@ -15,6 +15,7 @@ namespace fs = std::filesystem;
 
 std::queue<std::string> pathQueue; 
 std::mutex queueMutex;            
+std::mutex printMutex;
 std::condition_variable cv; 
 std::atomic<bool> isDirScanDone(false);
 
@@ -73,13 +74,15 @@ void recursiveFileScan(const std::string& path, const std::string& keyword) {
 				std::string filename = entry.path().filename().string();
 
 				if (filename.find(keyword) != std::string::npos) {
-					std::cout << "File: " << entry.path().string() << "\n";
+					{
+						std::lock_guard<std::mutex> lock(printMutex);
+						std::cout << "File: " << entry.path().string() << "\n";
+					}
 				}
 
 				std::string extension = entry.path().extension().string();
 
 				if (validExtensions.find(extension) != validExtensions.end()) {
-
 					{
 						std::lock_guard<std::mutex> lock(queueMutex);
 						pathQueue.push(entry.path().string());
@@ -108,8 +111,12 @@ void searchInFile(const std::string& path, const std::string& keyword) {
 
 	while (std::getline(file, line)) {
 		if (line.find(keyword) != std::string::npos) {
-			std::cout << "Found in " << path << " (Line: " << lineNumber << ")\n";
+			{
+				std::lock_guard<std::mutex> lock(printMutex);
+				std::cout << "Found in " << path << " (Line: " << lineNumber << ")\n";
+			}
 		}
+
 		lineNumber++;
 	}
 }
