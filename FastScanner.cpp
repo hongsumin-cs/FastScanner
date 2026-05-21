@@ -11,6 +11,10 @@
 #include <vector>
 #include <atomic>
 
+#include <string_view>
+
+#include <windows.h>
+
 namespace fs = std::filesystem;
 
 std::queue<std::string> pathQueue; 
@@ -28,7 +32,7 @@ void worker(const std::string& keyword) {
 	while (true) {
 		std::string currentPath;
 
-		// critical section start
+		// Critical section start
 		{
 			std::unique_lock<std::mutex> lock(queueMutex);
 
@@ -43,7 +47,7 @@ void worker(const std::string& keyword) {
 			currentPath = pathQueue.front();
 			pathQueue.pop();
 		}
-		// critical section end
+		// Critical section end
 
 		searchInFile(currentPath, keyword);
 	}
@@ -99,6 +103,7 @@ void recursiveFileScan(const std::string& path, const std::string& keyword) {
 	}
 }
 
+/* Standard fstream based search
 void searchInFile(const std::string& path, const std::string& keyword) {
 	std::ifstream file(path);
 
@@ -119,6 +124,64 @@ void searchInFile(const std::string& path, const std::string& keyword) {
 
 		lineNumber++;
 	}
+}
+*/
+
+// Zero-copy based search function
+void searchInFile(const std::string& path, const std::string& keyword) {
+	const char* mappedData = nullptr;
+	size_t fileSize = 0;
+
+	// Open file for read only
+	HANDLE hFile = CreateFileA(path.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hFile == INVALID_HANDLE_VALUE) 
+		return;
+
+	// Check file size
+	LARGE_INTEGER size;
+	if (GetFileSizeEx(hFile, &size)) {
+		fileSize = size.QuadPart;
+	}
+
+	HANDLE hMap = NULL;
+	if (fileSize > 0) {
+		hMap = CreateFileMappingA(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
+		if (hMap) {
+			mappedData = (const char*)MapViewOfFile(hMap, FILE_MAP_READ, 0, 0, 0);
+		}
+	}
+
+	// Keyword search & line tracking
+	if (mappedData && fileSize > 0) {
+		std::string_view fileView(mappedData, fileSize);
+
+		size_t offset = 0;
+		size_t foundPos;
+
+		// Search keyword in file
+		while ((foundPos = fileView.find(keyword, offset)) != std::string_view::npos) {
+
+			int lineNumber = 1;
+			for (size_t i = 0; i < foundPos; ++i) {
+				if (mappedData[i] == '\n') lineNumber++;
+			}
+
+			{
+				std::lock_guard<std::mutex> lock(printMutex);
+				std::cout << "Found in " << path << " (Line: " << lineNumber << ")\n";
+			}
+
+			offset = foundPos + keyword.length();
+		}
+	}
+
+	// Cleanup
+	if (mappedData) 
+		UnmapViewOfFile(mappedData);
+	if (hMap) 
+		CloseHandle(hMap);
+	if (hFile != INVALID_HANDLE_VALUE) 
+		CloseHandle(hFile);
 }
 
 int main(int argc, char* argv[])
@@ -146,7 +209,7 @@ int main(int argc, char* argv[])
 
 	unsigned int numThreads = std::thread::hardware_concurrency();
 	if (numThreads == 0) 
-		numThreads = 4; // use 4 threads basically
+		numThreads = 4; // Use 4 threads basically
 
 	std::cout << "Using " << numThreads << " worker threads.\n";
 
@@ -160,7 +223,7 @@ int main(int argc, char* argv[])
 	isDirScanDone = true;
 	cv.notify_all();
 
-	// join all threads
+	// Join all threads
 	for (auto& t : threadPool) {
 		if (t.joinable()) {
 			t.join();
