@@ -13,7 +13,17 @@
 
 #include <string_view>
 
-#include <windows.h>
+// Cross OS API header
+#ifdef _WIN32
+	// Windows
+	#include <windows.h>
+#else
+	// mac, Linux
+	#include <fcntl.h>
+	#include <sys/mman.h>
+	#include <sys/stat.h>
+#	include <unistd.h>
+#endif
 
 namespace fs = std::filesystem;
 
@@ -132,9 +142,11 @@ void searchInFile(const std::string& path, const std::string& keyword) {
 	const char* mappedData = nullptr;
 	size_t fileSize = 0;
 
+// Windows API
+#ifdef _WIN32
 	// Open file for read only
 	HANDLE hFile = CreateFileA(path.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	if (hFile == INVALID_HANDLE_VALUE) 
+	if (hFile == INVALID_HANDLE_VALUE)
 		return;
 
 	// Check file size
@@ -150,6 +162,25 @@ void searchInFile(const std::string& path, const std::string& keyword) {
 			mappedData = (const char*)MapViewOfFile(hMap, FILE_MAP_READ, 0, 0, 0);
 		}
 	}
+
+// mac/Linux API
+#else
+	int fd = open(path.c_str(), O_RDONLY);
+	if (fd < 0) 
+		return;
+
+	struct stat st; // Struct for inode
+
+	if (fstat(fd, &st) == 0) {
+		fileSize = st.st_size;
+		if (fileSize > 0) {
+			mappedData = (const char*)mmap(NULL, fileSize, PROT_READ, MAP_PRIVATE, fd, 0);
+			if (mappedData == MAP_FAILED) {
+				mappedData = nullptr;
+			}
+		}
+	}
+#endif
 
 	// Keyword search & line tracking
 	if (mappedData && fileSize > 0) {
@@ -176,11 +207,11 @@ void searchInFile(const std::string& path, const std::string& keyword) {
 	}
 
 	// Cleanup
-	if (mappedData) 
+	if (mappedData)
 		UnmapViewOfFile(mappedData);
-	if (hMap) 
+	if (hMap)
 		CloseHandle(hMap);
-	if (hFile != INVALID_HANDLE_VALUE) 
+	if (hFile != INVALID_HANDLE_VALUE)
 		CloseHandle(hFile);
 }
 
