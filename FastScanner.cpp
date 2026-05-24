@@ -10,6 +10,7 @@
 #include <condition_variable>
 #include <vector>
 #include <atomic>
+#include <algorithm>
 
 #include <string_view>
 
@@ -189,13 +190,13 @@ void searchInFile(const std::string& path, const std::string& keyword) {
 		size_t offset = 0;
 		size_t foundPos;
 
+		int lineNumber = 1;
+		size_t lastCheckedLine = 0; // Save line number of last keyword
+
 		// Search keyword in file
 		while ((foundPos = fileView.find(keyword, offset)) != std::string_view::npos) {
-
-			int lineNumber = 1;
-			for (size_t i = 0; i < foundPos; ++i) {
-				if (mappedData[i] == '\n') lineNumber++;
-			}
+			lineNumber += std::count(mappedData + lastCheckedLine, mappedData + foundPos, '\n');
+			lastCheckedLine = foundPos;
 
 			{
 				std::lock_guard<std::mutex> lock(printMutex);
