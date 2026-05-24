@@ -206,13 +206,20 @@ void searchInFile(const std::string& path, const std::string& keyword) {
 		}
 	}
 
-	// Cleanup
+// Unmapping
+#ifdef _WIN32
 	if (mappedData)
 		UnmapViewOfFile(mappedData);
 	if (hMap)
 		CloseHandle(hMap);
 	if (hFile != INVALID_HANDLE_VALUE)
 		CloseHandle(hFile);
+#else
+	if (mappedData)
+		munmap((void*)mappedData, fileSize);
+	if (fd >= 0)
+		close(fd);
+#endif
 }
 
 int main(int argc, char* argv[])
