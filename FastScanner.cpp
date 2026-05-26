@@ -1,4 +1,6 @@
-﻿#include <iostream>
+﻿#include "FastScanner.h"
+
+#include <iostream>
 #include <string>
 #include <filesystem>
 #include <fstream>
