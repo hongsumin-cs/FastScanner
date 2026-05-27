@@ -1,19 +1,9 @@
 ﻿#include "FastScanner.h"
-
 #include <iostream>
-#include <string>
 #include <filesystem>
 #include <fstream>
 #include <set>
-
-#include <queue>
-#include <thread>
-#include <mutex>
-#include <condition_variable>
-#include <vector>
-#include <atomic>
 #include <algorithm>
-
 #include <string_view>
 
 // Cross OS API header
@@ -30,18 +20,44 @@
 
 namespace fs = std::filesystem;
 
-std::queue<std::string> pathQueue; 
-std::mutex queueMutex;            
-std::mutex printMutex;
-std::condition_variable cv; 
-std::atomic<bool> isDirScanDone(false);
+// Construct of FastScanner
+// Create thread pool
+FastScanner::FastScanner(const std::string& searchWord, unsigned int numThreads)
+	: keyword(searchWord), isDirScanDone(false)
+{
+	if (numThreads == 0) {
+		numThreads = std::thread::hardware_concurrency();
 
-void worker(const std::string& keyword);
-void singleFileScan(const std::string& path);
-void recursiveFileScan(const std::string& path, const std::string& keyword);
-void searchInFile(const std::string& path, const std::string& keyword);
+		if (numThreads == 0)
+			numThreads = 4; // Use 4 threads basically
+	}
 
-void worker(const std::string& keyword) {
+	for (unsigned int i = 0; i < numThreads; ++i) {
+		threadPool.emplace_back(&FastScanner::worker, this);
+	}
+
+	std::cout << "Using " << numThreads << " worker threads.\n";
+}
+
+// Destructor of FastScanner
+FastScanner::~FastScanner() {
+	isDirScanDone = true;
+	cv.notify_all();
+
+	// Joint all threads
+	for (auto& t : threadPool) {
+		if (t.joinable()) {
+			t.join();
+		}
+	}
+}
+
+// Call recursive file scanning
+void FastScanner::startScan(const std::string& targetPath) {
+	recursiveFileScan(targetPath);
+}
+
+void FastScanner::worker() {
 	while (true) {
 		std::string currentPath;
 
@@ -62,11 +78,14 @@ void worker(const std::string& keyword) {
 		}
 		// Critical section end
 
-		searchInFile(currentPath, keyword);
+		searchInFile(currentPath);
 	}
 }
 
-void singleFileScan(const std::string& path) {
+// Search file
+// Not in use
+/*
+void FastScanner::singleFileScan(const std::string& path) {
 	for (const fs::directory_entry entry : fs::directory_iterator(path, fs::directory_options::skip_permission_denied)) {
 		if (entry.is_directory()) {
 			std::cout << "Directory: " << entry.path().string() << "\n";
@@ -77,14 +96,15 @@ void singleFileScan(const std::string& path) {
 		}
 	}
 }
+*/
 
-void recursiveFileScan(const std::string& path, const std::string& keyword) {
+void FastScanner::recursiveFileScan(const std::string& path) {
 	static const std::set<std::string> validExtensions = { ".txt", ".cpp", ".h", ".md", ".json", ".xml", ".csv" };
 
 	try {
 		for (const fs::directory_entry entry : fs::directory_iterator(path, fs::directory_options::skip_permission_denied)) {
 			if (entry.is_directory()) {
-				recursiveFileScan(entry.path().string(), keyword);
+				recursiveFileScan(entry.path().string());
 			}
 
 			else if (entry.is_regular_file()) {
@@ -141,7 +161,7 @@ void searchInFile(const std::string& path, const std::string& keyword) {
 */
 
 // Zero-copy based search function
-void searchInFile(const std::string& path, const std::string& keyword) {
+void FastScanner::searchInFile(const std::string& path) {
 	const char* mappedData = nullptr;
 	size_t fileSize = 0;
 
@@ -223,54 +243,4 @@ void searchInFile(const std::string& path, const std::string& keyword) {
 	if (fd >= 0)
 		close(fd);
 #endif
-}
-
-int main(int argc, char* argv[])
-{
-	if (argc < 3) {
-		std::cout << "Usage: " << argv[0] << " <Target Directory> <Word to Search>";
-		return 0;
-	}
-
-	std::string targetPath = argv[1];
-	std::string keyword = argv[2];
-
-	if (!fs::exists(targetPath)) {
-		std::cout << "Path does not exist: " << targetPath << "\n";
-		return 1;
-	}
-
-	if (!fs::is_directory(targetPath)) {
-		std::cout << "Path is not a directory: " << targetPath << "\n";
-		return 1;
-	}
-
-	std::cout << "Scanning in: " << targetPath << "\n";
-	std::cout << "Searching for: " << keyword << "\n";
-
-	unsigned int numThreads = std::thread::hardware_concurrency();
-	if (numThreads == 0) 
-		numThreads = 4; // Use 4 threads basically
-
-	std::cout << "Using " << numThreads << " worker threads.\n";
-
-	std::vector<std::thread> threadPool;
-	for (unsigned int i = 0; i < numThreads; ++i) {
-		threadPool.emplace_back(worker, keyword);
-	}
-	
-	recursiveFileScan(targetPath, keyword);
-
-	isDirScanDone = true;
-	cv.notify_all();
-
-	// Join all threads
-	for (auto& t : threadPool) {
-		if (t.joinable()) {
-			t.join();
-		}
-	}
-
-	std::cout << "Scan complete!\n";
-	return 0;
 }
