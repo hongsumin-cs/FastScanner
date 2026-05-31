@@ -45,6 +45,7 @@ FastScanner::~FastScanner() {
 	cv.notify_all();
 
 	// Joint all threads
+	// Left for safety
 	for (auto& t : threadPool) {
 		if (t.joinable()) {
 			t.join();
@@ -55,6 +56,16 @@ FastScanner::~FastScanner() {
 // Call recursive file scanning
 void FastScanner::startScan(const std::string& targetPath) {
 	recursiveFileScan(targetPath);
+
+	isDirScanDone = true; // Notice directory scan is done
+	cv.notify_all(); // Wake all workers
+
+	// Wait until all threads' work done!!!
+	for (auto& t : threadPool) {
+		if (t.joinable()) {
+			t.join();
+		}
+	}
 }
 
 void FastScanner::worker() {
