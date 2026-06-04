@@ -19,7 +19,7 @@ private:
     std::string keyword;
 
     void worker();
-    void recursiveFileScan(const std::string& path);
+    void recursiveFileScan(const std::string& path, std::vector<std::string>& batch);
     void searchInFile(const std::string& path);
 
 public:

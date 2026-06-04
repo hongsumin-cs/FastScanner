@@ -55,7 +55,19 @@ FastScanner::~FastScanner() {
 
 // Call recursive file scanning
 void FastScanner::startScan(const std::string& targetPath) {
-	recursiveFileScan(targetPath);
+	// Added batch for efficient queue push
+	std::vector<std::string> batch;
+	batch.reserve(64);
+
+	recursiveFileScan(targetPath, batch);
+
+	if (!batch.empty()) {
+		std::lock_guard<std::mutex> lock(queueMutex);
+		for (const auto& p : batch) {
+			pathQueue.push(p);
+		}
+		batch.clear();
+	}
 
 	isDirScanDone = true; // Notice directory scan is done
 	cv.notify_all(); // Wake all workers
@@ -109,13 +121,14 @@ void FastScanner::singleFileScan(const std::string& path) {
 }
 */
 
-void FastScanner::recursiveFileScan(const std::string& path) {
+// Added batch as argument
+void FastScanner::recursiveFileScan(const std::string& path, std::vector<std::string>& batch) {
 	static const std::set<std::string> validExtensions = { ".txt", ".cpp", ".h", ".md", ".json", ".xml", ".csv" };
 
 	try {
 		for (const fs::directory_entry entry : fs::directory_iterator(path, fs::directory_options::skip_permission_denied)) {
 			if (entry.is_directory()) {
-				recursiveFileScan(entry.path().string());
+				recursiveFileScan(entry.path().string(), batch);
 			}
 
 			else if (entry.is_regular_file()) {
@@ -131,12 +144,20 @@ void FastScanner::recursiveFileScan(const std::string& path) {
 				std::string extension = entry.path().extension().string();
 
 				if (validExtensions.find(extension) != validExtensions.end()) {
-					{
+					batch.push_back(entry.path().string()); // Put strings into queue
+
+					if (batch.size() >= 64) {
 						std::lock_guard<std::mutex> lock(queueMutex);
-						pathQueue.push(entry.path().string());
+
+						// Push all batch elements into queue
+						for (const auto& p : batch) {
+							pathQueue.push(p);
+						}
 					}
 
-					cv.notify_one();
+					cv.notify_all();
+
+					batch.clear(); // Clear batch
 				}
 			}
 		}
