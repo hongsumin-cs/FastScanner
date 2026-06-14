@@ -7,19 +7,28 @@
 #include <condition_variable>
 #include <atomic>
 
+// Struct for scanning
+struct ScanTask {
+    bool isDirectory;
+    std::string path;
+};
+
 class FastScanner {
 private:
-    std::queue<std::string> pathQueue;
+    std::queue<ScanTask> taskQueue; // Queue for pushing tasks
     std::mutex queueMutex;
     std::mutex printMutex;
-    std::condition_variable cv;
-    std::atomic<bool> isDirScanDone;
+
+    std::condition_variable workerCv; // cv for workers
+    std::condition_variable doneCv; // cv for main thread
+    std::atomic<int> activeWorkers{ 0 }; // Number of workers active
+    std::atomic<bool> stopPool = false; // Thread pool controller
 
     std::vector<std::thread> threadPool;
     std::string keyword;
 
     void worker();
-    void recursiveFileScan(const std::string& path, std::vector<std::string>& batch);
+    void directoryScan(const std::string& path);
     void searchInFile(const std::string& path);
 
 public:

@@ -22,8 +22,7 @@ namespace fs = std::filesystem;
 
 // Construct of FastScanner
 // Create thread pool
-FastScanner::FastScanner(const std::string& searchWord, unsigned int numThreads)
-	: keyword(searchWord), isDirScanDone(false)
+FastScanner::FastScanner(const std::string& searchWord, unsigned int numThreads) : keyword(searchWord)
 {
 	if (numThreads == 0) {
 		numThreads = std::thread::hardware_concurrency();
@@ -41,8 +40,12 @@ FastScanner::FastScanner(const std::string& searchWord, unsigned int numThreads)
 
 // Destructor of FastScanner
 FastScanner::~FastScanner() {
-	isDirScanDone = true;
-	cv.notify_all();
+	{
+		std::lock_guard<std::mutex> lock(queueMutex);
+		stopPool = true; // Stop thread pool
+	}
+
+	workerCv.notify_all();
 
 	// Joint all threads
 	// Left for safety
@@ -53,57 +56,68 @@ FastScanner::~FastScanner() {
 	}
 }
 
-// Call recursive file scanning
+// Push only root directory and wait
 void FastScanner::startScan(const std::string& targetPath) {
-	// Added batch for efficient queue push
-	std::vector<std::string> batch;
-	batch.reserve(64);
-
-	recursiveFileScan(targetPath, batch);
-
-	if (!batch.empty()) {
+	{
 		std::lock_guard<std::mutex> lock(queueMutex);
-		for (const auto& p : batch) {
-			pathQueue.push(p);
-		}
-		batch.clear();
+		taskQueue.push({ true, targetPath });
 	}
 
-	isDirScanDone = true; // Notice directory scan is done
-	cv.notify_all(); // Wake all workers
+	workerCv.notify_one();
 
-	// Wait until all threads' work done!!!
-	for (auto& t : threadPool) {
-		if (t.joinable()) {
-			t.join();
-		}
+	{
+		std::unique_lock<std::mutex> lock(queueMutex);
+		doneCv.wait(lock, [this] {
+			return taskQueue.empty() && activeWorkers == 0; // Queue is empty & No worker is working
+		});
 	}
 }
 
+
 void FastScanner::worker() {
 	while (true) {
-		std::string currentPath;
+		std::vector<ScanTask> batch; // Batch to bring works from task queue
+		batch.reserve(64); // Prevent vector reallocation overhead
 
 		// Critical section start
 		{
 			std::unique_lock<std::mutex> lock(queueMutex);
+			workerCv.wait(lock, [this] {
+				return !taskQueue.empty() || stopPool;
+			});
 
-			while (pathQueue.empty() && !isDirScanDone) {
-				cv.wait(lock);
-			}
-
-			if (isDirScanDone && pathQueue.empty()) {
+			if (stopPool && taskQueue.empty()) 
 				return;
-			}
 
-			currentPath = pathQueue.front();
-			pathQueue.pop();
+			// Bring works from queue to batch
+			while (!taskQueue.empty() && batch.size() < 64) {
+				batch.push_back(taskQueue.front());
+				taskQueue.pop();
+			}
+			activeWorkers++; // Working thread +1
 		}
 		// Critical section end
 
-		searchInFile(currentPath);
+		for (const auto& task : batch) {
+			if (task.isDirectory) {
+				directoryScan(task.path); // If directory, thread itself open inner directory
+			}
+			else {
+				searchInFile(task.path); // If file, search text in it
+			}
+		}
+
+		{
+			std::lock_guard<std::mutex> lock(queueMutex);
+			activeWorkers--; // Working thread -1
+
+			if (taskQueue.empty() && activeWorkers == 0) {
+				doneCv.notify_one(); // Awake main thread and notice work is done
+			}
+		}
 	}
 }
+
 
 // Search file
 // Not in use
@@ -121,19 +135,32 @@ void FastScanner::singleFileScan(const std::string& path) {
 }
 */
 
-// Added batch as argument
-void FastScanner::recursiveFileScan(const std::string& path, std::vector<std::string>& batch) {
+
+// No batch as argument anymore
+// Use batch space
+// Scan inner directories and push into task queue with batch
+// To solve race condition while scanning directory
+void FastScanner::directoryScan(const std::string& path) {
 	static const std::set<std::string> validExtensions = { ".txt", ".cpp", ".h", ".md", ".json", ".xml", ".csv" };
+
+	std::vector<ScanTask> batch; // Batch to push tasks into task queue
+	batch.reserve(64); // Prevent vector reallocation overhead
 
 	try {
 		for (const fs::directory_entry entry : fs::directory_iterator(path, fs::directory_options::skip_permission_denied)) {
+			// Destructor check
+			if (stopPool) 
+				break;
+
 			if (entry.is_directory()) {
-				recursiveFileScan(entry.path().string(), batch);
+				// Convert inner directory to task and push
+				batch.push_back({ true, entry.path().string() });
 			}
 
 			else if (entry.is_regular_file()) {
 				std::string filename = entry.path().filename().string();
 
+				// Found filename match
 				if (filename.find(keyword) != std::string::npos) {
 					{
 						std::lock_guard<std::mutex> lock(printMutex);
@@ -142,24 +169,31 @@ void FastScanner::recursiveFileScan(const std::string& path, std::vector<std::st
 				}
 
 				std::string extension = entry.path().extension().string();
-
 				if (validExtensions.find(extension) != validExtensions.end()) {
-					batch.push_back(entry.path().string()); // Put strings into queue
-
-					if (batch.size() >= 64) {
-						std::lock_guard<std::mutex> lock(queueMutex);
-
-						// Push all batch elements into queue
-						for (const auto& p : batch) {
-							pathQueue.push(p);
-						}
-					}
-
-					cv.notify_all();
-
-					batch.clear(); // Clear batch
+					// Convert file to task and push
+					batch.push_back({ false, entry.path().string() });
 				}
 			}
+
+			// When batch is full, push into main task queue
+			if (batch.size() >= 64) {
+				{
+					std::lock_guard<std::mutex> lock(queueMutex);
+					for (const auto& t : batch)
+						taskQueue.push(t);
+				}
+
+				workerCv.notify_all();
+				batch.clear();
+			}
+		}
+
+		// Push all leftover tasks in batch
+		if (!batch.empty()) {
+			std::lock_guard<std::mutex> lock(queueMutex);
+			for (const auto& t : batch)
+				taskQueue.push(t);
+			workerCv.notify_all();
 		}
 	}
 
@@ -192,12 +226,13 @@ void searchInFile(const std::string& path, const std::string& keyword) {
 }
 */
 
+
 // Zero-copy based search function
 void FastScanner::searchInFile(const std::string& path) {
 	const char* mappedData = nullptr;
 	size_t fileSize = 0;
 
-// Windows API
+	// Windows API
 #ifdef _WIN32
 	// Open file for read only
 	HANDLE hFile = CreateFileA(path.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -218,10 +253,10 @@ void FastScanner::searchInFile(const std::string& path) {
 		}
 	}
 
-// mac/Linux API
+	// mac/Linux API
 #else
 	int fd = open(path.c_str(), O_RDONLY);
-	if (fd < 0) 
+	if (fd < 0)
 		return;
 
 	struct stat st; // Struct for inode
@@ -236,6 +271,7 @@ void FastScanner::searchInFile(const std::string& path) {
 		}
 	}
 #endif
+
 
 	// Keyword search & line tracking
 	if (mappedData && fileSize > 0) {
@@ -261,7 +297,8 @@ void FastScanner::searchInFile(const std::string& path) {
 		}
 	}
 
-// Unmapping
+
+	// Unmapping
 #ifdef _WIN32
 	if (mappedData)
 		UnmapViewOfFile(mappedData);
