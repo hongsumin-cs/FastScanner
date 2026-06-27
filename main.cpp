@@ -21,8 +21,22 @@ int main(int argc, char* argv[]) {
     std::cout << "Scanning in: " << targetPath << "\n";
     std::cout << "Searching for: " << keyword << "\n";
 
-    FastScanner scanner(keyword);
-    scanner.startScan(targetPath);
+    try {
+        FastScanner scanner(keyword);
+        scanner.startScan(targetPath);
+    }
+
+    catch (const std::invalid_argument& e) {
+        // Catch wrong input error
+        std::cerr << "Error: " << e.what() << "\n";
+        return 1;
+    }
+
+    catch (const std::exception& e) {
+        // Catch other errors
+        std::cerr << "Error: " << e.what() << "\n";
+        return 1;
+    }
 
     std::cout << "Scan complete!\n";
     return 0;

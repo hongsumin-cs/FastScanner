@@ -5,6 +5,7 @@
 #include <set>
 #include <algorithm>
 #include <string_view>
+#include <stdexcept>
 
 // Cross OS API header
 #ifdef _WIN32
@@ -24,6 +25,12 @@ namespace fs = std::filesystem;
 // Create thread pool
 FastScanner::FastScanner(const std::string& searchWord, unsigned int numThreads) : keyword(searchWord)
 {
+
+	// Block empty input error
+	if (keyword.empty()) {
+		throw std::invalid_argument("Search keyword cannot be empty.");
+	}
+
 	if (numThreads == 0) {
 		numThreads = std::thread::hardware_concurrency();
 
@@ -152,7 +159,8 @@ void FastScanner::directoryScan(const std::string& path) {
 			if (stopPool) 
 				break;
 
-			if (entry.is_directory()) {
+			// Entry must be directory and not symbolic link
+			if (entry.is_directory() && !entry.is_symlink()) {
 				// Convert inner directory to task and push
 				batch.push_back({ true, entry.path().string() });
 			}
@@ -198,6 +206,7 @@ void FastScanner::directoryScan(const std::string& path) {
 	}
 
 	catch (const fs::filesystem_error& e) {
+		std::lock_guard<std::mutex> lock(printMutex); // Mutex for cout
 		std::cerr << "Error: " << path << "\n";
 	}
 }
