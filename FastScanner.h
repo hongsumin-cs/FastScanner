@@ -7,6 +7,13 @@
 #include <condition_variable>
 #include <atomic>
 
+// Struct for search result
+struct SearchResult {
+    std::string path;
+    int lineNumber;
+    enum Type { FileNameMatch, ContentMatch } type;
+};
+
 // Struct for scanning
 struct ScanTask {
     bool isDirectory;
@@ -18,6 +25,8 @@ private:
     std::queue<ScanTask> taskQueue; // Queue for pushing tasks
     std::mutex queueMutex;
     std::mutex printMutex;
+    std::mutex resultMutex;
+    std::vector<SearchResult> results;
 
     std::condition_variable workerCv; // cv for workers
     std::condition_variable doneCv; // cv for main thread
