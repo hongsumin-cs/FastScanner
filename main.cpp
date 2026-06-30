@@ -23,7 +23,16 @@ int main(int argc, char* argv[]) {
 
     try {
         FastScanner scanner(keyword);
-        scanner.startScan(targetPath);
+
+        // Print immediately when scan done
+        scanner.setOnResultFound([](const SearchResult& result) {
+            if (result.type == SearchResult::FileNameMatch)
+                std::cout << "File: " << result.path << "\n";
+            else
+                std::cout << "Found in " << result.path << " (Line: " << result.lineNumber << ")\n";
+            });
+
+        scanner.startScan(targetPath); // Start Scan
     }
 
     catch (const std::invalid_argument& e) {

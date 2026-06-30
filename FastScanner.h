@@ -6,6 +6,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <atomic>
+#include <functional>
 
 // Struct for search result
 struct SearchResult {
@@ -26,7 +27,7 @@ private:
     std::mutex queueMutex;
     std::mutex printMutex;
     std::mutex resultMutex;
-    std::vector<SearchResult> results;
+    std::vector<SearchResult> results; // Vector to save searched results
 
     std::condition_variable workerCv; // cv for workers
     std::condition_variable doneCv; // cv for main thread
@@ -40,9 +41,20 @@ private:
     void directoryScan(const std::string& path);
     void searchInFile(const std::string& path);
 
+    // Callback function pointer
+    std::function<void(const SearchResult&)> onResultFound;
+
 public:
     FastScanner(const std::string& searchWord, unsigned int threadCount = 0);
     ~FastScanner();
 
     void startScan(const std::string& targetPath);
+
+    std::vector<SearchResult> getResults();
+
+    // Callback for onResultFound
+    void setOnResultFound(std::function<void(const SearchResult&)> callback) {
+        std::lock_guard<std::mutex> lock(resultMutex);
+        onResultFound = std::move(callback);
+    }
 };

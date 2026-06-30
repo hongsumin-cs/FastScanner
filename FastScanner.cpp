@@ -21,6 +21,11 @@
 
 namespace fs = std::filesystem;
 
+std::vector<SearchResult> FastScanner::getResults() {
+	std::lock_guard<std::mutex> lock(resultMutex);
+	return results; // Save return with lock
+}
+
 // Construct of FastScanner
 // Create thread pool
 FastScanner::FastScanner(const std::string& searchWord, unsigned int numThreads) : keyword(searchWord)
@@ -170,9 +175,17 @@ void FastScanner::directoryScan(const std::string& path) {
 
 				// Found filename match
 				if (filename.find(keyword) != std::string::npos) {
+					SearchResult res = { entry.path().string(), 0, SearchResult::FileNameMatch};
+
+					// Save in vector
 					{
-						std::lock_guard<std::mutex> lock(printMutex);
-						std::cout << "File: " << entry.path().string() << "\n";
+						std::lock_guard<std::mutex> lock(resultMutex);
+						results.push_back(res);
+					}
+
+					// Callback
+					if (onResultFound) {
+						onResultFound(res);
 					}
 				}
 
@@ -297,9 +310,17 @@ void FastScanner::searchInFile(const std::string& path) {
 			lineNumber += std::count(mappedData + lastCheckedLine, mappedData + foundPos, '\n');
 			lastCheckedLine = foundPos;
 
+			SearchResult res = { path, lineNumber, SearchResult::ContentMatch };
+
+			// Save in vector
 			{
-				std::lock_guard<std::mutex> lock(printMutex);
-				std::cout << "Found in " << path << " (Line: " << lineNumber << ")\n";
+				std::lock_guard<std::mutex> lock(resultMutex);
+				results.push_back(res);
+			}
+
+			// Callback
+			if (onResultFound) {
+				onResultFound(res);
 			}
 
 			offset = foundPos + keyword.length();
