@@ -9,24 +9,24 @@
 
 // Cross OS API header
 #ifdef _WIN32
-	// Windows
-	#include <windows.h>
+// Windows
+#include <windows.h>
 #else
-	// mac, Linux
-	#include <fcntl.h>
-	#include <sys/mman.h>
-	#include <sys/stat.h>
-	#include <unistd.h>
+// mac, Linux
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #endif
 
 namespace fs = std::filesystem;
 
 std::vector<SearchResult> FastScanner::getResults() {
 	std::lock_guard<std::mutex> lock(resultMutex);
-	return results; // Save return with lock
+	return results; // Thread-safe return of results
 }
 
-// Construct of FastScanner
+// FastScanner constructor
 // Create thread pool
 FastScanner::FastScanner(const std::string& searchWord, unsigned int numThreads) : keyword(searchWord)
 {
@@ -40,7 +40,7 @@ FastScanner::FastScanner(const std::string& searchWord, unsigned int numThreads)
 		numThreads = std::thread::hardware_concurrency();
 
 		if (numThreads == 0)
-			numThreads = 4; // Use 4 threads basically
+			numThreads = 4; // Default 4 threads
 	}
 
 	for (unsigned int i = 0; i < numThreads; ++i) {
@@ -167,15 +167,15 @@ void FastScanner::directoryScan(const std::string& path) {
 			// Entry must be directory and not symbolic link
 			if (entry.is_directory() && !entry.is_symlink()) {
 				// Convert inner directory to task and push
-				batch.push_back({ true, entry.path().string() });
+				batch.push_back({ true, entry.path().u8string() });
 			}
 
 			else if (entry.is_regular_file()) {
-				std::string filename = entry.path().filename().string();
+				std::string filename = entry.path().filename().u8string();
 
 				// Found filename match
 				if (filename.find(keyword) != std::string::npos) {
-					SearchResult res = { entry.path().string(), 0, SearchResult::FileNameMatch};
+					SearchResult res = { entry.path().u8string(), 0, SearchResult::FileNameMatch};
 
 					// Save in vector
 					{
@@ -189,10 +189,10 @@ void FastScanner::directoryScan(const std::string& path) {
 					}
 				}
 
-				std::string extension = entry.path().extension().string();
+				std::string extension = entry.path().extension().u8string();
 				if (validExtensions.find(extension) != validExtensions.end()) {
 					// Convert file to task and push
-					batch.push_back({ false, entry.path().string() });
+					batch.push_back({ false, entry.path().u8string() });
 				}
 			}
 
@@ -281,7 +281,7 @@ void FastScanner::searchInFile(const std::string& path) {
 	if (fd < 0)
 		return;
 
-	struct stat st; // Struct for inode
+	struct stat st; // File status structure
 
 	if (fstat(fd, &st) == 0) {
 		fileSize = st.st_size;

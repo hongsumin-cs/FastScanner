@@ -24,7 +24,7 @@ int main(int argc, char* argv[]) {
     try {
         FastScanner scanner(keyword);
 
-        // Print immediately when scan done
+        // Print immediately when a result is found
         scanner.setOnResultFound([](const SearchResult& result) {
             if (result.type == SearchResult::FileNameMatch)
                 std::cout << "File: " << result.path << "\n";
@@ -33,10 +33,8 @@ int main(int argc, char* argv[]) {
             });
 
         scanner.startScan(targetPath); // Start Scan
-    }
-
-    catch (const std::invalid_argument& e) {
-        // Catch wrong input error
+    } catch (const std::invalid_argument& e) {
+        // Handle invalid argument error
         std::cerr << "Error: " << e.what() << "\n";
         return 1;
     }

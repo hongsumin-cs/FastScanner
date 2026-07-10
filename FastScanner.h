@@ -29,8 +29,8 @@ private:
     std::mutex resultMutex;
     std::vector<SearchResult> results; // Vector to save searched results
 
-    std::condition_variable workerCv; // cv for workers
-    std::condition_variable doneCv; // cv for main thread
+    std::condition_variable workerCv; // CV for workers
+    std::condition_variable doneCv; // CV for main thread
     std::atomic<int> activeWorkers{ 0 }; // Number of workers active
     std::atomic<bool> stopPool = false; // Thread pool controller
 
