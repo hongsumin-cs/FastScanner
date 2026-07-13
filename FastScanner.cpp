@@ -120,10 +120,10 @@ void FastScanner::worker() {
 				}
 			} catch (const std::exception& e) {
 				std::lock_guard<std::mutex> lock(printMutex);
-				std::cerr << "Error: " << task.path << "\n";
+				std::cerr << "Error: " << task.path.u8string() << "\n";
 			} catch (...) {
 				std::lock_guard<std::mutex> lock(printMutex);
-				std::cerr << "Unknown error: " << task.path << "\n";
+				std::cerr << "Unknown error: " << task.path.u8string() << "\n";
 			}
 		}
 
@@ -228,7 +228,7 @@ void FastScanner::directoryScan(const std::filesystem::path& path) {
 
 	catch (const fs::filesystem_error& e) {
 		std::lock_guard<std::mutex> lock(printMutex); // Mutex for cout
-		std::cerr << "Error: " << path << "\n";
+		std::cerr << "Error: " << path.u8string() << "\n";
 	}
 }
 

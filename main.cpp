@@ -1,10 +1,17 @@
 #include <iostream>
 #include <filesystem>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include "FastScanner.h"
 
 namespace fs = std::filesystem;
 
 int main(int argc, char* argv[]) {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+#endif
+
     if (argc < 3) {
         std::cout << "Usage: " << argv[0] << " <Target Directory> <Word to Search>\n";
         return 0;
