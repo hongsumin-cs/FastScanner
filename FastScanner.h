@@ -7,6 +7,7 @@
 #include <condition_variable>
 #include <atomic>
 #include <functional>
+#include <filesystem>
 
 // Struct for search result
 struct SearchResult {
@@ -18,7 +19,7 @@ struct SearchResult {
 // Struct for scanning
 struct ScanTask {
     bool isDirectory;
-    std::string path;
+    std::filesystem::path path;
 };
 
 class FastScanner {
@@ -38,8 +39,8 @@ private:
     std::string keyword;
 
     void worker();
-    void directoryScan(const std::string& path);
-    void searchInFile(const std::string& path);
+    void directoryScan(const std::filesystem::path& path);
+    void searchInFile(const std::filesystem::path& path);
 
     // Callback function pointer
     std::function<void(const SearchResult&)> onResultFound;
@@ -48,7 +49,7 @@ public:
     FastScanner(const std::string& searchWord, unsigned int threadCount = 0);
     ~FastScanner();
 
-    void startScan(const std::string& targetPath);
+    void startScan(const std::filesystem::path& targetPath);
 
     std::vector<SearchResult> getResults();
 

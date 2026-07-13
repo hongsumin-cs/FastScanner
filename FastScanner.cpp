@@ -69,7 +69,7 @@ FastScanner::~FastScanner() {
 }
 
 // Push only root directory and wait
-void FastScanner::startScan(const std::string& targetPath) {
+void FastScanner::startScan(const std::filesystem::path& targetPath) {
 	{
 		std::lock_guard<std::mutex> lock(queueMutex);
 		taskQueue.push({ true, targetPath });
@@ -111,11 +111,19 @@ void FastScanner::worker() {
 		// Critical section end
 
 		for (const auto& task : batch) {
-			if (task.isDirectory) {
-				directoryScan(task.path); // If directory, thread itself open inner directory
-			}
-			else {
-				searchInFile(task.path); // If file, search text in it
+			try {
+				if (task.isDirectory) {
+					directoryScan(task.path); // If directory, thread itself open inner directory
+				}
+				else {
+					searchInFile(task.path); // If file, search text in it
+				}
+			} catch (const std::exception& e) {
+				std::lock_guard<std::mutex> lock(printMutex);
+				std::cerr << "Error: " << task.path << "\n";
+			} catch (...) {
+				std::lock_guard<std::mutex> lock(printMutex);
+				std::cerr << "Unknown error: " << task.path << "\n";
 			}
 		}
 
@@ -152,7 +160,7 @@ void FastScanner::singleFileScan(const std::string& path) {
 // Use batch space
 // Scan inner directories and push into task queue with batch
 // To solve race condition while scanning directory
-void FastScanner::directoryScan(const std::string& path) {
+void FastScanner::directoryScan(const std::filesystem::path& path) {
 	static const std::set<std::string> validExtensions = { ".txt", ".cpp", ".h", ".md", ".json", ".xml", ".csv" };
 
 	std::vector<ScanTask> batch; // Batch to push tasks into task queue
@@ -167,7 +175,7 @@ void FastScanner::directoryScan(const std::string& path) {
 			// Entry must be directory and not symbolic link
 			if (entry.is_directory() && !entry.is_symlink()) {
 				// Convert inner directory to task and push
-				batch.push_back({ true, entry.path().u8string() });
+				batch.push_back({ true, entry.path() });
 			}
 
 			else if (entry.is_regular_file()) {
@@ -192,7 +200,7 @@ void FastScanner::directoryScan(const std::string& path) {
 				std::string extension = entry.path().extension().u8string();
 				if (validExtensions.find(extension) != validExtensions.end()) {
 					// Convert file to task and push
-					batch.push_back({ false, entry.path().u8string() });
+					batch.push_back({ false, entry.path() });
 				}
 			}
 
@@ -250,14 +258,14 @@ void searchInFile(const std::string& path, const std::string& keyword) {
 
 
 // Zero-copy based search function
-void FastScanner::searchInFile(const std::string& path) {
+void FastScanner::searchInFile(const std::filesystem::path& path) {
 	const char* mappedData = nullptr;
 	size_t fileSize = 0;
 
-	// Windows API
+// Windows API
 #ifdef _WIN32
 	// Open file for read only
-	HANDLE hFile = CreateFileA(path.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	HANDLE hFile = CreateFileW(path.wstring().c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hFile == INVALID_HANDLE_VALUE)
 		return;
 
@@ -275,7 +283,7 @@ void FastScanner::searchInFile(const std::string& path) {
 		}
 	}
 
-	// mac/Linux API
+// mac/Linux API
 #else
 	int fd = open(path.c_str(), O_RDONLY);
 	if (fd < 0)
@@ -310,7 +318,7 @@ void FastScanner::searchInFile(const std::string& path) {
 			lineNumber += std::count(mappedData + lastCheckedLine, mappedData + foundPos, '\n');
 			lastCheckedLine = foundPos;
 
-			SearchResult res = { path, lineNumber, SearchResult::ContentMatch };
+			SearchResult res = { path.u8string(), lineNumber, SearchResult::ContentMatch};
 
 			// Save in vector
 			{
@@ -328,7 +336,7 @@ void FastScanner::searchInFile(const std::string& path) {
 	}
 
 
-	// Unmapping
+// Unmapping
 #ifdef _WIN32
 	if (mappedData)
 		UnmapViewOfFile(mappedData);
