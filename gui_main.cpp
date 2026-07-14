@@ -9,6 +9,7 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QThread>
+#include <QCheckBox>
 #include <memory>
 #include "FastScanner.h"
 
@@ -38,6 +39,16 @@ int main(int argc, char* argv[]) {
     // Search button
     QPushButton* searchBtn = new QPushButton("Search");
     layout->addWidget(searchBtn);
+
+    // Search mode checkboxes
+    QHBoxLayout * modeLayout = new QHBoxLayout();
+    QCheckBox * fileNameCheck = new QCheckBox("Filename");
+    QCheckBox * contentCheck = new QCheckBox("Content");
+    fileNameCheck->setChecked(true);
+    contentCheck->setChecked(true);
+    modeLayout->addWidget(fileNameCheck);
+    modeLayout->addWidget(contentCheck);
+    layout->addLayout(modeLayout);
 
     // Result count
     QLabel* statusLabel = new QLabel("Ready");
@@ -72,6 +83,7 @@ int main(int argc, char* argv[]) {
     QThread* thread = QThread::create([=, &window]() {
         try {
             FastScanner scanner(keyword.toStdString());
+            scanner.setSearchMode(fileNameCheck->isChecked(), contentCheck->isChecked());
 
             // Callback: worker thread -> UI thread
             scanner.setOnResultFound([=](const SearchResult& result) {

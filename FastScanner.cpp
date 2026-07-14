@@ -182,7 +182,7 @@ void FastScanner::directoryScan(const std::filesystem::path& path) {
 				std::string filename = entry.path().filename().u8string();
 
 				// Found filename match
-				if (filename.find(keyword) != std::string::npos) {
+				if (searchFileNames && filename.find(keyword) != std::string::npos) {
 					SearchResult res = { entry.path().u8string(), 0, SearchResult::FileNameMatch};
 
 					// Save in vector
@@ -198,7 +198,7 @@ void FastScanner::directoryScan(const std::filesystem::path& path) {
 				}
 
 				std::string extension = entry.path().extension().u8string();
-				if (validExtensions.find(extension) != validExtensions.end()) {
+				if (searchContents && validExtensions.find(extension) != validExtensions.end()) {
 					// Convert file to task and push
 					batch.push_back({ false, entry.path() });
 				}

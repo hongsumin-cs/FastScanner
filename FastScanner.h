@@ -37,6 +37,8 @@ private:
 
     std::vector<std::thread> threadPool;
     std::string keyword;
+    bool searchFileNames = true;
+    bool searchContents = true;
 
     void worker();
     void directoryScan(const std::filesystem::path& path);
@@ -57,5 +59,11 @@ public:
     void setOnResultFound(std::function<void(const SearchResult&)> callback) {
         std::lock_guard<std::mutex> lock(resultMutex);
         onResultFound = std::move(callback);
+    }
+
+    // Search mode setter
+    void setSearchMode(bool fileNames, bool contents) {
+        searchFileNames = fileNames;
+        searchContents = contents;
     }
 };
