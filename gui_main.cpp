@@ -11,6 +11,7 @@
 #include <QThread>
 #include <QCheckBox>
 #include <memory>
+#include <chrono>
 #include "FastScanner.h"
 
 int main(int argc, char* argv[]) {
@@ -84,6 +85,7 @@ int main(int argc, char* argv[]) {
         try {
             FastScanner scanner(keyword.toStdString());
             scanner.setSearchMode(fileNameCheck->isChecked(), contentCheck->isChecked());
+            auto start = std::chrono::high_resolution_clock::now();
 
             // Callback: worker thread -> UI thread
             scanner.setOnResultFound([=](const SearchResult& result) {
@@ -103,9 +105,11 @@ int main(int argc, char* argv[]) {
             scanner.startScan(dir.toStdString());
 
             // UI update
+            auto end = std::chrono::high_resolution_clock::now();
+            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
             int count = scanner.getResults().size();
             QMetaObject::invokeMethod(statusLabel, [=]() {
-                statusLabel->setText(QString("Done - %1 results found").arg(count));
+                statusLabel->setText(QString("Done - %1 results found (%2 ms)").arg(count).arg(ms));
                 searchBtn->setEnabled(true);
                 }, Qt::QueuedConnection);
         }
