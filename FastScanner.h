@@ -8,6 +8,7 @@
 #include <atomic>
 #include <functional>
 #include <filesystem>
+#include <set>
 
 // Struct for search result
 struct SearchResult {
@@ -39,6 +40,7 @@ private:
     std::string keyword;
     bool searchFileNames = true;
     bool searchContents = true;
+    std::set<std::string> validExtensions = { ".txt", ".cpp", ".h", ".md", ".json", ".xml", ".csv" };
 
     void worker();
     void directoryScan(const std::filesystem::path& path);
@@ -65,5 +67,10 @@ public:
     void setSearchMode(bool fileNames, bool contents) {
         searchFileNames = fileNames;
         searchContents = contents;
+    }
+
+    // Extensions setter
+    void setExtensions(const std::set<std::string>& extensions) {
+        validExtensions = extensions;
     }
 };

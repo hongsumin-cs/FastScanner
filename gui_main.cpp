@@ -51,6 +51,31 @@ int main(int argc, char* argv[]) {
     modeLayout->addWidget(contentCheck);
     layout->addLayout(modeLayout);
 
+    // Default extensions
+    QHBoxLayout* extLayout = new QHBoxLayout();
+    QCheckBox* txtCheck = new QCheckBox(".txt"); txtCheck->setChecked(true);
+    QCheckBox* cppCheck = new QCheckBox(".cpp"); cppCheck->setChecked(true);
+    QCheckBox* pyCheck = new QCheckBox(".py"); pyCheck->setChecked(true);
+    QCheckBox* hCheck = new QCheckBox(".h"); hCheck->setChecked(true);
+    QCheckBox* mdCheck = new QCheckBox(".md"); mdCheck->setChecked(true);
+    QCheckBox* jsonCheck = new QCheckBox(".json"); jsonCheck->setChecked(true);
+    QCheckBox* xmlCheck = new QCheckBox(".xml"); xmlCheck->setChecked(true);
+    QCheckBox* csvCheck = new QCheckBox(".csv"); csvCheck->setChecked(true);
+    extLayout->addWidget(txtCheck);
+    extLayout->addWidget(cppCheck);
+    extLayout->addWidget(pyCheck);
+    extLayout->addWidget(hCheck);
+    extLayout->addWidget(mdCheck);
+    extLayout->addWidget(jsonCheck);
+    extLayout->addWidget(xmlCheck);
+    extLayout->addWidget(csvCheck);
+    layout->addLayout(extLayout);
+
+    // Custom extensions
+    QLineEdit* customExtInput = new QLineEdit();
+    customExtInput->setPlaceholderText("Custom extensions (e.g. .c .rs)");
+    layout->addWidget(customExtInput);
+
     // Result count
     QLabel* statusLabel = new QLabel("Ready");
     layout->addWidget(statusLabel);
@@ -85,6 +110,37 @@ int main(int argc, char* argv[]) {
         try {
             FastScanner scanner(keyword.toStdString());
             scanner.setSearchMode(fileNameCheck->isChecked(), contentCheck->isChecked());
+
+            // Insert checked default extensions
+            std::set<std::string> exts;
+            if (txtCheck->isChecked()) 
+                exts.insert(".txt");
+            if (cppCheck->isChecked()) 
+                exts.insert(".cpp");
+            if (pyCheck->isChecked())
+                exts.insert(".py");
+            if (hCheck->isChecked()) 
+                exts.insert(".h");
+            if (mdCheck->isChecked()) 
+                exts.insert(".md");
+            if (jsonCheck->isChecked()) 
+                exts.insert(".json");
+            if (xmlCheck->isChecked()) 
+                exts.insert(".xml");
+            if (csvCheck->isChecked()) 
+                exts.insert(".csv");
+
+            // Parse custom extensions
+            QString customText = customExtInput->text().trimmed();
+            if (!customText.isEmpty()) {
+                for (const QString& ext : customText.split(" ", Qt::SkipEmptyParts)) {
+                    QString e = ext.startsWith(".") ? ext : "." + ext;
+                    exts.insert(e.toStdString());
+                }
+            }
+
+            scanner.setExtensions(exts);
+
             auto start = std::chrono::high_resolution_clock::now();
 
             // Callback: worker thread -> UI thread

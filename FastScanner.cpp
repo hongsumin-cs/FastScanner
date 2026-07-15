@@ -161,8 +161,6 @@ void FastScanner::singleFileScan(const std::string& path) {
 // Scan inner directories and push into task queue with batch
 // To solve race condition while scanning directory
 void FastScanner::directoryScan(const std::filesystem::path& path) {
-	static const std::set<std::string> validExtensions = { ".txt", ".cpp", ".h", ".md", ".json", ".xml", ".csv" };
-
 	std::vector<ScanTask> batch; // Batch to push tasks into task queue
 	batch.reserve(64); // Prevent vector reallocation overhead
 
