@@ -59,8 +59,7 @@ FastScanner::~FastScanner() {
 
 	workerCv.notify_all();
 
-	// Joint all threads
-	// Left for safety
+	// Join all threads
 	for (auto& t : threadPool) {
 		if (t.joinable()) {
 			t.join();
@@ -225,7 +224,7 @@ void FastScanner::directoryScan(const std::filesystem::path& path) {
 	}
 
 	catch (const fs::filesystem_error& e) {
-		std::lock_guard<std::mutex> lock(printMutex); // Mutex for cout
+		std::lock_guard<std::mutex> lock(printMutex); // Mutex for cerr
 		std::cerr << "Error: " << path.u8string() << "\n";
 	}
 }
