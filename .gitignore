@@ -361,3 +361,29 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# CMake build output
+out/
+
+# Deploy folder
+deploy/
+
+# Qt generated files
+moc_*
+ui_*
+qrc_*
+
+# CMake
+CMakeSettings.json
+
+# Old VS project files (now using CMake)
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+
+# Executables
+*.exe
+
+# Releases
+*.zip
