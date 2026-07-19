@@ -177,6 +177,14 @@ void FastScanner::directoryScan(const std::filesystem::path& path) {
 
 			else if (entry.is_regular_file()) {
 				std::string filename = entry.path().filename().u8string();
+				std::string extension = entry.path().extension().u8string();
+
+				bool contentTarget = searchContents && validExtensions.find(extension) != validExtensions.end();
+
+				// Count files that are about to be searched with any type
+				if (searchFileNames || contentTarget) {
+					scannedFiles++;
+				}
 
 				// Found filename match
 				if (searchFileNames && filename.find(keyword) != std::string::npos) {
@@ -194,8 +202,7 @@ void FastScanner::directoryScan(const std::filesystem::path& path) {
 					}
 				}
 
-				std::string extension = entry.path().extension().u8string();
-				if (searchContents && validExtensions.find(extension) != validExtensions.end()) {
+				if (contentTarget) {
 					// Convert file to task and push
 					batch.push_back({ false, entry.path() });
 				}
@@ -229,34 +236,8 @@ void FastScanner::directoryScan(const std::filesystem::path& path) {
 	}
 }
 
-/* Standard fstream based search
-void searchInFile(const std::string& path, const std::string& keyword) {
-	std::ifstream file(path);
-
-	if (!file.is_open()) {
-		return;
-	}
-
-	std::string line;
-	int lineNumber = 1;
-
-	while (std::getline(file, line)) {
-		if (line.find(keyword) != std::string::npos) {
-			{
-				std::lock_guard<std::mutex> lock(printMutex);
-				std::cout << "Found in " << path << " (Line: " << lineNumber << ")\n";
-			}
-		}
-
-		lineNumber++;
-	}
-}
-*/
-
-
 // Zero-copy based search function
 void FastScanner::searchInFile(const std::filesystem::path& path) {
-	scannedFiles++;
 	const char* mappedData = nullptr;
 	size_t fileSize = 0;
 

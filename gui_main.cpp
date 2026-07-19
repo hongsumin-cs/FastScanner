@@ -268,7 +268,7 @@ int main(int argc, char* argv[]) {
                 int files = scanner.getScannedFileCount();
                 QMetaObject::invokeMethod(statusLabel, [=]() {
 
-                    statusLabel->setText(QString("Done - %1 results in %2 files (%3 ms)").arg(count).arg(files).arg(ms));
+                    statusLabel->setText(QString("Done - %1 matches in %2 files (%3 ms)").arg(count).arg(files).arg(ms));
                     searchBtn->setEnabled(true);
                     }, Qt::QueuedConnection);
             }
