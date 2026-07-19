@@ -35,6 +35,7 @@ private:
     std::condition_variable doneCv; // CV for main thread
     std::atomic<int> activeWorkers{ 0 }; // Number of workers active
     std::atomic<bool> stopPool = false; // Thread pool controller
+    std::atomic<int> scannedFiles{ 0 }; // File counter
 
     std::vector<std::thread> threadPool;
     std::string keyword;
@@ -72,5 +73,10 @@ public:
     // Extensions setter
     void setExtensions(const std::set<std::string>& extensions) {
         validExtensions = extensions;
+    }
+
+    // File count getter
+    int getScannedFileCount() const { 
+        return scannedFiles; 
     }
 };

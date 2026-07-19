@@ -29,7 +29,7 @@ int main(int argc, char* argv[]) {
     QWidget {
         background-color: #FAFAFA;
         font-family: "Segoe UI", sans-serif;
-        font-size: 13px;
+        font-size: 15px;
         color: #202020;
     }
 
@@ -265,8 +265,10 @@ int main(int argc, char* argv[]) {
                 auto end = std::chrono::high_resolution_clock::now();
                 auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
                 int count = scanner.getResults().size();
+                int files = scanner.getScannedFileCount();
                 QMetaObject::invokeMethod(statusLabel, [=]() {
-                    statusLabel->setText(QString("Done - %1 results found (%2 ms)").arg(count).arg(ms));
+
+                    statusLabel->setText(QString("Done - %1 results in %2 files (%3 ms)").arg(count).arg(files).arg(ms));
                     searchBtn->setEnabled(true);
                     }, Qt::QueuedConnection);
             }

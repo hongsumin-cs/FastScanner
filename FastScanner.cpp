@@ -256,6 +256,7 @@ void searchInFile(const std::string& path, const std::string& keyword) {
 
 // Zero-copy based search function
 void FastScanner::searchInFile(const std::filesystem::path& path) {
+	scannedFiles++;
 	const char* mappedData = nullptr;
 	size_t fileSize = 0;
 
