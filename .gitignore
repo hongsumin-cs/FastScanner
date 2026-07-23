@@ -387,3 +387,4 @@ CMakeSettings.json
 
 # Releases
 *.zip  
+/CMakeSettings.json

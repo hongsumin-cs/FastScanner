@@ -11,8 +11,6 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-# Qt settings
-set(CMAKE_PREFIX_PATH "C:/Qt/6.11.1/msvc2022_64")
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
 # CLI ver
